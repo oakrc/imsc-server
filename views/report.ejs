@@ -1,0 +1,45 @@
+<html>
+    <head>
+        <link rel="stylesheet" type="text/css" href="/stylesheets/style.css">
+        <title>Scoring Report | imsc</title>
+    </head>
+    <body>
+        <div id="report-title">
+            <%= title %>
+        </div>
+        <div class="session-info">
+            <div id="info-keys">
+                <div class="info-key">Name</div>
+                <div class="info-key">Session begins</div>
+                <div class="info-key">Session ends</div>
+                <div class="info-key">Score</div>
+                <div class="info-key">Vulnerabilities</div>
+                <div class="info-key">Penalties</div>
+            </div>
+            <div id="info-values">
+                <div class="info-value"><%= partaker_name %></div>
+                <div class="info-value"><%= start_time %> (<%= time_used %>)</div>
+                <div class="info-value"><%= end_time %> (<%= time_left %>)</div>
+                <div class="info-value"><%= score %></div>
+                <div class="info-value"><%= vulns.length %> out of <%= total_vulns %> (<%= vulns_pts %> points)</div>
+                <div class="info-value"><%= penalties.length %> (<%= penal_pts %> points)</div>
+            </div>
+        </div>
+
+        <div class="rules-list">
+            <% penalties.concat(vulns).forEach((rule) => { %>
+                <div class="rule">
+                    <div class="rule-desc">
+                        (<%= rule.pts %> points) <%= rule.name %>
+                    </div>
+                </div>
+            <% }) %>
+
+            <% if (vulns.length === 0) { %>
+                <div style="margin-top: 15px;">
+                    No vulnerabilities fixed yet.
+                </div>
+            <% } %>
+        </div>
+    </body>
+</html>

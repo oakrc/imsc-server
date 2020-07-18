@@ -1,0 +1,3 @@
+#+TITLE: ~imsc~ Server
+
+This is the server side script I created for [[https://github.com/oakrc/imsc][imsc]] based on NodeJS, ExpressJS, and SQLite.

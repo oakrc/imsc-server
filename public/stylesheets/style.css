@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap');
+
+body {
+  padding: 50px;
+  font: 15px 'Roboto', sans-serif;
+}
+
+#report-title {
+  font-size: 35px;
+  margin-bottom: 10px;
+}
+
+.session-info {
+  font-size: 23px;
+  width: 100%;
+  display: table;
+}
+
+#info-keys {
+  width: 20%;
+  display: table-cell;
+  border-right: solid 2px #373737;
+  font-weight: bold;
+  text-align: right;
+  padding-right: 20px;
+}
+
+#info-values {
+  display: table-cell;
+  padding-left: 20px;
+}
+
+.rules-list {
+  margin-top: 30px;
+}
