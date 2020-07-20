@@ -1,7 +1,9 @@
 const moment = require('moment-timezone')
 const express = require('express');
+const toml = require('toml')
+const { v4: uuidv4 } = require('uuid')
 const crypto = require('crypto')
-var router = express.Router();
+var router = express.Router()
 
 const empty_report = '{"pts":0,"vulns":[],"penalties":[]}'
 
@@ -77,7 +79,9 @@ const fetch_session_info = () => {
                               }
 
                               res.locals.image = image
+                              console.log(image)
                               res.locals.session = session
+                              console.log(session)
 
                               next()
                           })
@@ -132,21 +136,18 @@ router.post('/:token/report', fetch_session_info(), ensure_active_session(), (re
     }
 
     // No need to validate report; this is made for practice images
-    // using get because db.run doesn't call callback when there's no error
-    db.get("UPDATE sessions SET report = $report, score = $score, last_scored = $last_scored WHERE token = $token;",
-           {
-               $report : report,
-               $score : report.pts,
-               $token : token,
-               $last_scored : new Date()
-           },
-           (err) => {
-               if (err){
-                   res.status(500).json({success: false, message: err.message})
-               }
-               else
-                   res.redirect(`/session/${token}/stop`)
-           })
+    try {
+        db.run("UPDATE sessions SET report = $report, score = $score, last_scored = $last_scored WHERE token = $token;",
+               {
+                   $report : JSON.stringify(report),
+                   $score : report.pts,
+                   $token : token,
+                   $last_scored : new Date()
+               })
+        res.redirect(`/session/${token}/stop`)
+    } catch (err) {
+        res.status(500).json({success: false, message: err.message})
+    }
 })
 
 // view scoring report
@@ -154,6 +155,7 @@ router.get('/:token/report', fetch_session_info(), (req, res) => {
     var db = req.app.locals.db
     var image = res.locals.image
     var session = res.locals.session
+    console.log(res.locals.session.report)
     var report = JSON.parse(res.locals.session.report || empty_report)
     db.get('SELECT COUNT(*) AS total_vulns FROM rules WHERE image_id = ? AND points > 0', image.id,
            (err, row) => {
@@ -199,14 +201,24 @@ router.get('/:token/report', fetch_session_info(), (req, res) => {
 router.get('/:token/stop', fetch_session_info(), ensure_active_session(), (req, res) => {
     var token = req.params.token
     var db = req.app.locals.db
-    // using get because db.run doesn't call callback when there's no error
-    db.get('UPDATE sessions SET stopped = 1 WHERE token = ?', token,
-           (err) => {
-               if (err)
-                   res.status(500).json({success: false, message: err.message})
-               else
-                   res.status(200).json({success: true, message: "Successfully stopped scoring."})
-           })
+    try {
+        db.run('UPDATE sessions SET stopped = 1 WHERE token = ?', token)
+        res.status(200).json({success: true, message: "Successfully stopped scoring."})
+    } catch (err) {
+        res.status(500).json({success: false, message: err.message})
+    }
+})
+
+// restart scoring
+router.get('/:token/restart', fetch_session_info(), (req, res) => {
+    var token = req.params.token
+    var db = req.app.locals.db
+    try {
+        db.run('UPDATE sessions SET stopped = 0 WHERE token = ?', token)
+        res.status(200).json({success: true, message: "Successfully restarted scoring."})
+    } catch (err) {
+        res.status(500).json({success: false, message: err.message})
+    }
 })
 
 // client: get session status
@@ -214,6 +226,29 @@ router.get('/:token/stop', fetch_session_info(), ensure_active_session(), (req, 
 router.get('/:token/status', fetch_session_info(), (_req, res) => {
     var session = res.locals.session
     res.json({success: true, message: encrypt(JSON.stringify(session.status))})
+})
+
+router.post('/', (req, res) => {
+    try {
+        var db = req.app.locals.db
+        var session = toml.parse(req.params.config)
+        session.token = uuidv4()
+
+        db.get('INSERT INTO sessions (token, image_id, user_name, start_time) VALUES (?,?,?,?)',
+               [session.token, session.image_id, session.user_name, new Date(session.start_time)],
+               (err) => {
+                   if (err) {
+                       res.status(500).json({success: false, message: err.message})
+                       return
+                   }
+                   res.json({success: true, message: `New session created (Token: ${session.token})`})
+               })
+
+    } catch (err) {
+        res.status(500).json({success: false, message: err.message})
+    }
+
+    res.status(400).end()
 })
 
 module.exports = router

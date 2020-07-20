@@ -19,10 +19,10 @@ CREATE TABLE sessions (
     image_id        INT NOT NULL,
     user_name       TEXT NOT NULL,      -- name of the participant
     start_time      DATETIME NOT NULL,
-    report          TEXT NOT NULL,
-    score           INT NOT NULL,
-    last_scored     DATETIME,
-    stopped         BOOLEAN NOT NULL,   -- True: user manually stopped scoring
+    report          TEXT NOT NULL DEFAULT '{"pts":0,"vulns":[],"penalties":[]}',
+    score           INT NOT NULL DEFAULT 0,
+    last_scored     DATETIME DEFAULT '0001-01-01',
+    stopped         BOOLEAN NOT NULL DEFAULT 0,   -- True: user manually stopped scoring
     FOREIGN KEY (image_id) REFERENCES images(id) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
