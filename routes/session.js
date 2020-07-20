@@ -1,19 +1,35 @@
-const moment = require('moment')
+const moment = require('moment-timezone')
 const express = require('express');
+const crypto = require('crypto')
 var router = express.Router();
 
-const empty_report = JSON.stringify({pts: 0, vulns: [], penalties: []})
-const dummy_report = {
-    pts: 100,
-    vulns: [
-        {
-            pts: 100,
-            name: "Test passed"
-        }
-    ],
-    penalties: []
+const empty_report = '{"pts":0,"vulns":[],"penalties":[]}'
+
+const imsc_key_str = process.env.IMSC_KEY
+var sha256sum = crypto.createHash('sha256')
+sha256sum.update(imsc_key_str)
+const imsc_key = sha256sum.digest()
+const algorithm = 'aes-256-cfb'
+
+function encrypt(text) {
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(algorithm, imsc_key, iv);
+  let enc = [iv, cipher.update(text, 'utf8')];
+  enc.push(cipher.final());
+  return Buffer.concat(enc).toString('base64');
 }
-const date_format = 'YYYY-MM-DD HH:mm:ss'
+
+function decrypt(text) {
+  const contents = Buffer.from(text, 'base64');
+  const iv = contents.slice(0, 16);
+  const text_bytes = contents.slice(16);
+  const decipher = crypto.createDecipheriv(algorithm, imsc_key, iv);
+  let res = decipher.update(text_bytes, '', 'utf8');
+  res += decipher.final('utf8');
+  return res;
+}
+// hardcoding it since I'm only using it for the club
+const format_moment = (m) => m.tz('America/Los_Angeles').format('YYYY-MM-DD HH:mm:ss z')
 
 const fetch_session_info = () => {
     return (req, res, next) => {
@@ -29,6 +45,7 @@ const fetch_session_info = () => {
                        res.status(500).json({sucess: false, message: err.message})
                        return
                    }
+
                    if (!session) {
                        res.status(400).json({success: false, message: "Token not found or session inactive."})
                        return
@@ -45,19 +62,18 @@ const fetch_session_info = () => {
                                   return
                               }
 
-                              end_time = moment(new Date(session.start_time)).add(image.duration, 'm').toDate()
+                              end_time = moment.utc(session.start_time).add(image.duration, 'm').toDate()
 
                               session.end_time = end_time
-                              session.start_time = new Date(session.start_time)
-                              session.last_scored = new Date(session.last_scored)
+                              session.start_time = moment.utc(session.start_time).toDate()
+                              session.last_scored = moment.utc(session.last_scored || '0000-01-01').toDate()
 
                               if (session.end_time < new Date() || session.stopped) {
-                                  res.session.status = 'Termination'
-                              } else if (session.last_scored == null ||
-                                         moment(session.last_scored).add(1, 'm').toDate() < new Date()) {
-                                  res.session.status = 'Score'
+                                  session.status = 'Termination'
+                              } else if (moment(session.last_scored).add(1, 'm').toDate() < new Date()) {
+                                  session.status = 'Score'
                               } else {
-                                  res.session.status = 'Wait'
+                                  session.status = 'Wait'
                               }
 
                               res.locals.image = image
@@ -71,7 +87,7 @@ const fetch_session_info = () => {
 
 const ensure_active_session = () => {
     return (_req, res, next) => {
-        if (res.locals.session.end_time >= new Date()) {
+        if (res.locals.session.end_time <= new Date()) {
             res.status(403).json({success: false, message: "Token expired"})
             return
         }
@@ -88,6 +104,7 @@ router.get('/:token', fetch_session_info(), ensure_active_session(), (req, res) 
     // Check if token exists and session has began
     var db = req.app.locals.db
     var image = res.locals.image
+    var session = res.locals.session
     db.all("SELECT * FROM rules WHERE image_id = ?", image.id,
            (err, rules) => {
                if (err) {
@@ -99,30 +116,37 @@ router.get('/:token', fetch_session_info(), ensure_active_session(), (req, res) 
 
                image.checklist = rules
                image.start_time = session.start_time
-               res.send({success: true, message: image})
+               res.send({success: true, message: encrypt(JSON.stringify(image))})
            })
-});
+})
 
 // client: upload scoring data
 router.post('/:token/report', fetch_session_info(), ensure_active_session(), (req, res) => {
     var token = req.params.token
     var db = req.app.locals.db
-    var report = req.body
+    var report = JSON.parse(decrypt(req.body))
     var session = res.locals.session
     if (session.status != 'Score') {
         res.status(403).json({success: false, message: "Wait for at least 1 minute before last submission"})
         return
     }
+
     // No need to validate report; this is made for practice images
-    db.run("UPDATE sessions SET report = $report, score = $score, last_scored = $last_scored WHERE token = $token",
+    // using get because db.run doesn't call callback when there's no error
+    db.get("UPDATE sessions SET report = $report, score = $score, last_scored = $last_scored WHERE token = $token;",
            {
-               $report : JSON.stringify(report || empty_report),
+               $report : report,
                $score : report.pts,
                $token : token,
                $last_scored : new Date()
            },
-           (err) => res.status(500).json({success: false, message: err.message}))
-    res.status(200).json({success: true, message: "Report successfully submitted"})
+           (err) => {
+               if (err){
+                   res.status(500).json({success: false, message: err.message})
+               }
+               else
+                   res.redirect(`/session/${token}/stop`)
+           })
 })
 
 // view scoring report
@@ -130,14 +154,7 @@ router.get('/:token/report', fetch_session_info(), (req, res) => {
     var db = req.app.locals.db
     var image = res.locals.image
     var session = res.locals.session
-    var report
-    if (process.env.DEBUG == 'true') {
-        report = dummy_report
-        session.score = 100
-        console.log('DEBUG mode')
-    }
-    else
-        report = JSON.parse(res.locals.session.report || empty_report)
+    var report = JSON.parse(res.locals.session.report || empty_report)
     db.get('SELECT COUNT(*) AS total_vulns FROM rules WHERE image_id = ? AND points > 0', image.id,
            (err, row) => {
                if (err) {
@@ -162,8 +179,8 @@ router.get('/:token/report', fetch_session_info(), (req, res) => {
                res.render('../views/report', {
                    title: image.image_name + " Scoring Report",
                    partaker_name: session.user_name,
-                   start_time: moment(session.start_time).format(date_format),
-                   end_time: moment(session.end_time).format(date_format),
+                   start_time: format_moment(moment(session.start_time)),
+                   end_time: format_moment(moment(session.end_time)),
                    time_used: moment(session.start_time).fromNow(),
                    time_left: moment(session.end_time).fromNow(),
 
@@ -182,15 +199,21 @@ router.get('/:token/report', fetch_session_info(), (req, res) => {
 router.get('/:token/stop', fetch_session_info(), ensure_active_session(), (req, res) => {
     var token = req.params.token
     var db = req.app.locals.db
-    db.run('UPDATE sessions SET stopped = 1 WHERE token = ?', token,
-           (err) => res.status(500).json({success: false, message: err.message}))
+    // using get because db.run doesn't call callback when there's no error
+    db.get('UPDATE sessions SET stopped = 1 WHERE token = ?', token,
+           (err) => {
+               if (err)
+                   res.status(500).json({success: false, message: err.message})
+               else
+                   res.status(200).json({success: true, message: "Successfully stopped scoring."})
+           })
 })
 
 // client: get session status
 // Wait, Score, Termination
 router.get('/:token/status', fetch_session_info(), (_req, res) => {
     var session = res.locals.session
-    res.json({success: true, message: session.status})
+    res.json({success: true, message: encrypt(JSON.stringify(session.status))})
 })
 
-module.exports = router;
+module.exports = router
