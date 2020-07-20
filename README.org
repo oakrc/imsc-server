@@ -1,3 +1,11 @@
 #+TITLE: ~imsc~ Server
 
 This is the server side script I created for [[https://github.com/oakrc/imsc][imsc]] based on NodeJS, ExpressJS, and SQLite.
+
+* How to Use
+#+BEGIN_SRC sh
+git clone https://github.com/oakrc/imsc-server
+cd imsc-server
+npm install
+IMSC_SERVER=https://example.com IMSC_KEY=MySecretPassword node app.js
+#+END_SRC
