@@ -1,3 +1,4 @@
+<!-- -*- mode: web -*- -->
 <html>
     <head>
         <link rel="stylesheet" type="text/css" href="/stylesheets/style.css">
@@ -12,6 +13,7 @@
                 <div class="info-key">Name</div>
                 <div class="info-key">Session begins</div>
                 <div class="info-key">Session ends</div>
+                <div class="info-key">Session status</div>
                 <div class="info-key">Score</div>
                 <div class="info-key">Vulnerabilities</div>
                 <div class="info-key">Penalties</div>
@@ -20,6 +22,7 @@
                 <div class="info-value"><%= partaker_name %></div>
                 <div class="info-value"><%= start_time %> (<%= time_used %>)</div>
                 <div class="info-value"><%= end_time %> (<%= time_left %>)</div>
+                <div class="info-value"><%= status %></div>
                 <div class="info-value"><%= score %></div>
                 <div class="info-value"><%= vulns.length %> out of <%= total_vulns %> (<%= vulns_pts %> points)</div>
                 <div class="info-value"><%= penalties.length %> (<%= penal_pts %> points)</div>

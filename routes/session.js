@@ -14,11 +14,11 @@ const imsc_key = sha256sum.digest()
 const algorithm = 'aes-256-cfb'
 
 function encrypt(text) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(algorithm, imsc_key, iv);
-  let enc = [iv, cipher.update(text, 'utf8')];
-  enc.push(cipher.final());
-  return Buffer.concat(enc).toString('base64');
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(algorithm, imsc_key, iv);
+    let enc = [iv, cipher.update(text, 'utf8')];
+    enc.push(cipher.final());
+    return Buffer.concat(enc).toString('base64');
 }
 
 function decrypt(text) {
@@ -144,7 +144,10 @@ router.post('/:token/report', fetch_session_info(), ensure_active_session(), (re
                    $token : token,
                    $last_scored : new Date()
                })
-        res.redirect(`/session/${token}/stop`)
+        if (report.$score === 100)
+            res.redirect(`/session/${token}/stop`)
+        else
+            res.status(200).json({success: true, message: "Successfully uploaded scoring report"})
     } catch (err) {
         res.status(500).json({success: false, message: err.message})
     }
@@ -183,6 +186,7 @@ router.get('/:token/report', fetch_session_info(), (req, res) => {
                    partaker_name: session.user_name,
                    start_time: format_moment(moment(session.start_time)),
                    end_time: format_moment(moment(session.end_time)),
+                   status: session.status,
                    time_used: moment(session.start_time).fromNow(),
                    time_left: moment(session.end_time).fromNow(),
 
@@ -231,7 +235,7 @@ router.get('/:token/status', fetch_session_info(), (_req, res) => {
 router.post('/', (req, res) => {
     try {
         var db = req.app.locals.db
-        var session = toml.parse(req.params.config)
+        var session = toml.parse(req.body)
         session.token = uuidv4()
 
         db.get('INSERT INTO sessions (token, image_id, user_name, start_time) VALUES (?,?,?,?)',
@@ -247,8 +251,6 @@ router.post('/', (req, res) => {
     } catch (err) {
         res.status(500).json({success: false, message: err.message})
     }
-
-    res.status(400).end()
 })
 
 module.exports = router
