@@ -82,6 +82,7 @@ const fetch_session_info = () => {
                               console.log(image)
                               res.locals.session = session
                               console.log(session)
+                              console.log(JSON.stringify(JSON.parse(session.report), null, 2))
 
                               next()
                           })

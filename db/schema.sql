@@ -21,7 +21,7 @@ CREATE TABLE sessions (
     start_time      DATETIME NOT NULL,
     report          TEXT NOT NULL DEFAULT '{"pts":0,"vulns":[],"penalties":[]}',
     score           INT NOT NULL DEFAULT 0,
-    last_scored     DATETIME DEFAULT '0001-01-01',
+    last_scored     DATETIME DEFAULT '2000-01-01',
     stopped         BOOLEAN NOT NULL DEFAULT 0,   -- True: user manually stopped scoring
     FOREIGN KEY (image_id) REFERENCES images(id) ON UPDATE CASCADE ON DELETE CASCADE
 );

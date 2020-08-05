@@ -40,6 +40,7 @@ router.post('/', (req, res) => {
             stmt = db.prepare('INSERT INTO rules VALUES ($id,$image_id,$rule_name,$points,$command,$exit_code)')
             for (var i = 0; i != rules.length; i++)
                 stmt.run(rules[i])
+            stmt.finalize()
         })
         res.json({success: true, message: `New image created (ID: ${image.$id})`})
     } catch (err) {
