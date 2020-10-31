@@ -69,10 +69,11 @@ const fetch_session_info = () => {
                               session.end_time = end_time
                               session.start_time = moment.utc(session.start_time).toDate()
                               session.last_scored = moment.utc(session.last_scored || '0000-01-01').toDate()
+                              session.started = session.start_time <= new Date()
 
                               if (session.end_time < new Date() || session.stopped) {
                                   session.status = 'Termination'
-                              } else if (moment(session.last_scored).add(1, 'm').toDate() < new Date()) {
+                              } else if (moment(session.last_scored).add(1, 'm').toDate() < new Date() && session.started) {
                                   session.status = 'Score'
                               } else {
                                   session.status = 'Wait'
@@ -118,10 +119,14 @@ router.get('/:token', fetch_session_info(), ensure_active_session(), (req, res) 
                if (!rules) {
                    res.status(404).json({success: false, message: "No rules found"})
                }
-
-               image.checklist = rules
-               image.start_time = session.start_time
-               res.send({success: true, message: encrypt(JSON.stringify(image))})
+               if (session.started && !session.stopped) {
+                   image.checklist = rules
+                   image.start_time = session.start_time
+                   res.send({success: true, message: encrypt(JSON.stringify(image))})
+               }
+               else {
+                   res.status(403).send({success: false, message: "Session has not started yet or has stopped already."})
+               }
            })
 })
 
